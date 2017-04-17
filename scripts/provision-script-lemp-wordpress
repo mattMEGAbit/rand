@@ -1,10 +1,10 @@
-# ATTN: YOU - this isnt working or tested yet .. will update with version notes once complete 
 
 # TODO pipe output to log file
 # TODO make some cool animated shit here ... how to make shell script animations 
 	# http://patorjk.com/software/taag/#p=display&f=Graffiti&t=Type%20Something%20
 	# http://fsymbols.com/text-art/
-	# https://www.google.com/search?q=ascii+text+art
+	# https://www.google.com/search?q=ascii+text+art&espv=2&tbm=isch&tbo=u&source=univ&sa=X&ved=0ahUKEwiL3_7avqvTAhUM6SYKHYm1CngQsAQIVw&biw=1920&bih=965
+
 # TODO make script interactive run different processes - break this down into parts
 # TODO add message and show all of the variables etc
 # ------------------------------------------------------------------------------------------------------
@@ -30,13 +30,13 @@ echo -e "\n--- Running.. ---\n"
 
 echo -e "\n--- Updating packages list ---\n"
 
-apt-get -qq update
+apt-get -qq update > /dev/null
 
 echo -e "\n--- Installing base packages ---\n"
 
 # apt-get -y dist-upgrade
 
-apt-get -qq upgrade 
+apt-get -qq upgrade > /dev/null
 
 #### echo -e "\n--- setting password for root ---\n"
 #### echo "mysql-server mysql-server/root_password password $DBPASSWD" | debconf-set-selections
@@ -47,9 +47,11 @@ apt-get -qq upgrade
 
 echo -e "\n--- installing php-mysql php-fpm monit ---\n"
 
-apt-get -qq install php-mysql php-fpm monit
+apt-get -qq install php-mysql php-fpm monit > /dev/null
 
 echo -e "\n--- installing nginx ---\n"
+
+echo -e "\n--- adding nginx ppa ---\n"
 
 add-apt-repository ppa:nginx/stable
 
@@ -57,9 +59,9 @@ echo -e "\n--- apt-get update ---\n"
 
 apt-get -qq update
 
-echo -e "\n--- installing nginx ---\n"  # dont know how to suppress
+echo -e "\n--- installing nginx ---\n" 
 
-apt-get install -qq nginx 
+apt-get install -qq nginx  > /dev/null
 
 echo -e "\n--- current ip address ---\n"
 
@@ -138,7 +140,6 @@ mkdir -p /usr/share/nginx/cache/fcgi
 echo -e "\n--- creating cache directory ---\n"
 
 mkdir -p /usr/share/nginx/cache/fcgi
-
 
 echo -e "\n--- testing everything is working so far ---\n"
 
@@ -385,8 +386,6 @@ echo -e "\n--- restarting php ---\n"
 
 systemctl restart php7.0-fpm
 
-echo -e "\n--- setting up mysql ---\n"
-
 echo -e "\n--- generating random password ---\n"
 
 # echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15 && echo
@@ -394,11 +393,6 @@ echo -e "\n--- generating random password ---\n"
 DBPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
 
 echo $DBPASSWD
-
-# /usr/bin/mysql_secure_installation
-
-# http://stackoverflow.com/questions/24270733/automate-mysql-secure-installation-with-echo-command-via-a-shell-script
-# http://bertvv.github.io/notes-to-self/2015/11/16/automating-mysql_secure_installation/
 
 echo -e "\n--- setting up mysql ---\n"
 
@@ -411,14 +405,14 @@ echo -e "\n--- setting up mysql ---\n"
 # Remove the test database
 # Flush the privileges tables
 
-myql --user=root <<_EOF_
-UPDATE mysql.user SET Password=PASSWORD('${$DBPASSWD}') WHERE User='root';
+mysql --user=root <<EOF
+UPDATE mysql.user SET Password=PASSWORD('${DBPASSWD}') WHERE User='root';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 DROP DATABASE IF EXISTS test;
 DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
 FLUSH PRIVILEGES;
-_EOF_
+EOF
 
 echo -e "\n--- restarting mysql ---\n"
 
@@ -443,12 +437,12 @@ echo -e "\n--- edit /etc/nginx/conf.d/$YOURSITENAME.conf ---\n"
 cat > /etc/nginx/conf.d/$YOURSITENAME.conf <<EOF
 server {
     listen       80;
-    server_name  www.{$YOURSITENAME};
+    server_name  www.$YOURSITENAME;
 
     client_max_body_size 20m;
 
     index index.php index.html index.htm;
-    root   /home/{$YOURSITENAME}/public_html;
+    root   /home/$YOURSITENAME/public_html;
 
     location / {
         try_files $uri $uri/ /index.php?q=$uri&$args;
@@ -529,12 +523,14 @@ server {
 
 server {
     listen       80;
-    server_name  {$YOURSITENAME};
-    rewrite ^/(.*)$ http://www.{$YOURSITENAME}/$1 permanent;
+    server_name  $YOURSITENAME;
+    rewrite ^/(.*)$ http://www.$YOURSITENAME/$1 permanent;
 }
 EOF
 
+echo -e "\n--- testing output for conf file ---\n"
 
+cat  /etc/nginx/conf.d/$YOURSITENAME.conf
 
 echo -e "\n--- removing old nginx site ---\n"
 
@@ -547,12 +543,12 @@ rm /etc/nginx/sites-enabled/default
 echo -e "\n--- setup php pool for the new site ---\n"
 
 cat > /etc/php/7.0/fpm/pool.d/$YOURSITENAME.conf <<EOF
-[{$YOURSITENAME}]
-listen = /var/run/php/{$YOURSITENAME}.sock
-listen.owner = {$YOURSITENAME}
+[$YOURSITENAME]
+listen = /var/run/php/$YOURSITENAME.sock
+listen.owner = $YOURSITENAME
 listen.group = www-data
 listen.mode = 0660
-user = {$YOURSITENAME}
+user = $YOURSITENAME
 group = www-data
 pm = dynamic
 pm.max_children = 75
@@ -562,13 +558,13 @@ pm.max_spare_servers = 20
 pm.max_requests = 500
 
 php_admin_value[upload_max_filesize] = 25M
-php_admin_value[error_log] = /home/{$YOURSITENAME}/logs/phpfpm_error.log
-php_admin_value[open_basedir] = /home/{$YOURSITENAME}:/tmp
+php_admin_value[error_log] = /home/$YOURSITENAME/logs/phpfpm_error.log
+php_admin_value[open_basedir] = /home/$YOURSITENAME:/tmp
 EOF
 
 echo -e "\n--- creating phpfpm_error.log file ---\n"
 
-touch /home/yourusername/logs/phpfpm_error.log
+touch /home/$YOURSITENAME/logs/phpfpm_error.log
 
 echo -e "\n--- listing out all users on the system ---\n"
 
@@ -576,25 +572,50 @@ ls /home
 
 # need to change this {$DBPASSWD} for {$YOURSITENAME} since I think Im using roots pw
 
-echo -e "\n--- creating database for {$YOURSITENAME} ---\n"
+echo -e "\n--- creating database for $YOURSITENAME ---\n"
 
-CREATE DATABASE {$YOURSITENAME};
-CREATE USER {$YOURSITENAME}@localhost;
-SET PASSWORD FOR {$YOURSITENAME}@localhost= PASSWORD("{$DBPASSWD}");
-GRANT ALL PRIVILEGES ON {$YOURSITENAME}.* TO {$YOURSITENAME}@localhost IDENTIFIED BY '{$DBPASSWD}';
+# CREATE DATABASE $YOURSITENAME;
+# CREATE USER $YOURSITENAME@localhost;
+# SET PASSWORD FOR $YOURSITENAME@localhost= PASSWORD("{$DBPASSWD}");
+# GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '{$DBPASSWD}';
+# FLUSH PRIVILEGES;
+
+
+
+# mysql --user=root <<_EOF_
+# UPDATE mysql.user SET Password=PASSWORD('${$DBPASSWD}') WHERE User='root';
+# DELETE FROM mysql.user WHERE User='';
+# DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+# DROP DATABASE IF EXISTS test;
+# DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+# FLUSH PRIVILEGES;
+# _EOF_
+
+mysql --user=$YOURSITENAME <<EOF
+CREATE DATABASE $YOURSITENAME;
+CREATE USER $YOURSITENAME@localhost;
+SET PASSWORD FOR $YOURSITENAME@localhost= PASSWORD("${DBPASSWD}");
+GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '${DBPASSWD}';
 FLUSH PRIVILEGES;
+EOF
 
 
 
 
-echo -e "\n--- switching to user {$YOURSITENAME} ---\n"
 
-su - {$YOURSITENAME}
-cd
+echo -e "\n--- switching to user $YOURSITENAME ---\n"
+
+sudo -u $YOURSITENAME 
+wget https://wordpress.org/latest.tar.gz > /dev/null
+
+
+
+# su - $YOURSITENAME
+# cd
 
 echo -e "\n--- downloading wordpress ---\n"
 
-wget https://wordpress.org/latest.tar.gz
+wget https://wordpress.org/latest.tar.gz > /dev/null
 
 echo -e "\n--- Extract Wordpress Archive (+ Clean Up) ---\n"
 
@@ -605,12 +626,20 @@ echo -e "\n--- Rename the extracted 'wordpress' directory ---\n"
 
 mv wordpress public_html
 
-echo -e "\n--- witching to root again ---\n"
+echo -e "\n--- switching to root again ---\n"
+
+# this code may not be necessary
+
+# if [ "$(whoami)" != "root" ]
+# then
+#    sudo su -s "$0"
+#    exit
+# fi
 
 echo -e "\n--- Set proper file permissions on your site files ---\n"
 
-cd /home/{$YOURSITENAME}/public_html
-chown -R {$YOURSITENAME}:www-data .
+cd /home/$YOURSITENAME/public_html
+chown -R $YOURSITENAME:www-data .
 find . -type d -exec chmod 755 {} \;
 find . -type f -exec chmod 644 {} \;
 
@@ -620,7 +649,7 @@ systemctl restart php7.0-fpm nginx
 
 # echo -e "\n--- Secure the wp-config.php file so other users can’t read DB credentials ---\n"
 
-# chmod 640 /home/yourusername/public_html/wp-config.php
+# chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
 
 echo -e "\n--- DONE!! ---\n"
 
