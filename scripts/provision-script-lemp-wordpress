@@ -1,13 +1,14 @@
 
 # TODO pipe output to log file
-# TODO make some cool animated shit here ... how to make shell script animations 
-	# http://patorjk.com/software/taag/#p=display&f=Graffiti&t=Type%20Something%20
-	# http://fsymbols.com/text-art/
-	# https://www.google.com/search?q=ascii+text+art&espv=2&tbm=isch&tbo=u&source=univ&sa=X&ved=0ahUKEwiL3_7avqvTAhUM6SYKHYm1CngQsAQIVw&biw=1920&bih=965
-
+# TODO make some cool animated shit here ... 
+    # http://patorjk.com/software/taag/#p=display&f=Graffiti&t=Type%20Something%20
+    # http://fsymbols.com/text-art/
+    # https://www.google.com/search?q=ascii+text+art&espv=2&tbm=isch&tbo=u&source=univ&sa=X&ved=0ahUKEwiL3_7avqvTAhUM6SYKHYm1CngQsAQIVw&biw=1920&bih=965
 # TODO make script interactive run different processes - break this down into parts
 # TODO add message and show all of the variables etc
 # TODO setup build.log --> # apt-get -y install zip unzip >> /vagrant/vm_build.log 2>&1
+# TODO setup secure password for root on db
+# TODO make sure password isnt shown on the cmdline 
 # ------------------------------------------------------------------------------------------------------
 
 # username / sitename / databasename - should all be the same 
@@ -24,31 +25,45 @@ echo -e "\n--- Running.. ---\n"
 
 echo -e "\n--- Updating packages list ---\n"
 
-apt-get -qq update > /dev/null
+apt-get -y update >> /vagrant/vm_build.log 2>&1
 
 echo -e "\n--- Installing base packages ---\n"
 
-apt-get -qq upgrade > /dev/null
+apt-get -y upgrade >> /vagrant/vm_build.log 2>&1
 
-echo -e "\n--- installing php-mysql php-fpm monit ---\n"
+echo -e "\n--- Installing mysql ---\n"
 
-apt-get -qq install php-mysql php-fpm monit > /dev/null
+echo -e "\n--- root password for mysql is : $DBPASSWD ---\n"
+
+echo "mysql-server mysql-server/root_password password $DBPASSWD" | debconf-set-selections
+
+echo "mysql-server mysql-server/root_password_again password $DBPASSWD" | debconf-set-selections
+
+echo -e "\n--- Install MySQL and set password for root ---\n"
+
+apt-get -y install mysql-server >> /vagrant/vm_build.log 2>&1
+
+mysql -u root -p$DBPASSWD -e "use mysql; UPDATE user SET authentication_string=PASSWORD('$DBPASSWD') WHERE User='root'; flush privileges;" >> /vagrant/vm_build.log 2>&1
+
+echo -e "\n--- Installing php-mysql php-fpm monit ---\n"
+
+apt-get -y install php-mysql php-fpm monit >> /vagrant/vm_build.log 2>&1
 
 echo -e "\n--- installing nginx ---\n"
 
-echo -e "\n--- adding nginx ppa ---\n"
+echo -e "\n--- Adding nginx ppa ---\n"
 
-add-apt-repository ppa:nginx/stable
+add-apt-repository ppa:nginx/stable >> /vagrant/vm_build.log 2>&1
 
 echo -e "\n--- apt-get update ---\n" 
 
-apt-get -qq update
+apt-get -y update >> /vagrant/vm_build.log 2>&1
 
-echo -e "\n--- installing nginx ---\n" 
+echo -e "\n--- Installing nginx ---\n" 
 
-apt-get install -qq nginx  > /dev/null
+apt-get install -y nginx  >> /vagrant/vm_build.log 2>&1
 
-echo -e "\n--- current ip address ---\n"
+echo -e "\n--- Current ip address ---\n"
 
 IP=$(ip route get 8.8.8.8 | awk 'NR==1 {print $NF}')
 
@@ -60,7 +75,7 @@ systemctl status nginx php7.0-fpm monit
 
 systemctl start nginx php7.0-fpm monit
 
-echo -e "\n--- enabling - nginx php7.0-fpm monit - so they startup on boot ---\n"
+echo -e "\n--- enabling - mysql nginx php7.0-fpm monit - so they startup on boot ---\n"
 
 systemctl enable mysql nginx php7.0-fpm monit
 
@@ -131,7 +146,7 @@ systemctl reload nginx
 
 echo -e "\n--- install and setup php ---\n"
 
-apt-get install php-json php-xmlrpc php-curl php-gd php-xml php-mbstring php-mcrypt php-xml
+apt-get install php-json php-xmlrpc php-curl php-gd php-xml php-mbstring php-mcrypt php-xml >> /vagrant/vm_build.log 2>&1
 
 mv /etc/php/7.0/fpm/php-fpm.conf /etc/php/7.0/fpm/php-fpm.conf.ORIG
 
@@ -365,12 +380,6 @@ echo -e "\n--- restarting php ---\n"
 
 systemctl restart php7.0-fpm
 
-echo -e "\n--- generating random password for root db password ---\n"
-
-DBPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
-
-echo $DBPASSWD
-
 echo -e "\n--- setting up mysql ---\n"
 
 # http://stackoverflow.com/questions/24270733/automate-mysql-secure-installation-with-echo-command-via-a-shell-script
@@ -382,8 +391,8 @@ echo -e "\n--- Ensure the root user can not log in remotely ---\n"
 echo -e "\n--- Remove the test database ---\n"
 echo -e "\n--- Flush the privileges tables ---\n"
 
-mysql --user=root <<EOF
-UPDATE mysql.user SET Password=PASSWORD('${DBPASSWD}') WHERE User='root';
+mysql --user=root --password=$DBPASSWD <<EOF
+UPDATE mysql.user SET authentication_string=PASSWORD('${DBPASSWD}') WHERE User='root';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 DROP DATABASE IF EXISTS test;
@@ -547,27 +556,23 @@ echo -e "\n--- listing out all users on the system ---\n"
 
 ls /home
 
-echo -e "\n--- creating password for $YOURSITENAME ---\n"
+echo -e "\n--- creating password for : $YOURSITENAME ---\n"
 
 YOURSITENAME_DBPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
 
 echo -e "\n--- creating database for $YOURSITENAME ---\n"
 
-# this might break or throw an error 
-# might need to look like this 
-# mysql --user=root <<EOF
-
-mysql --user=$YOURSITENAME <<EOF
+mysql --user=root --password=$DBPASSWD <<EOF
 CREATE DATABASE $YOURSITENAME;
 CREATE USER $YOURSITENAME@localhost;
-SET PASSWORD FOR $YOURSITENAME@localhost= PASSWORD("${YOURSITENAME_DBPASSWD}");
+SET PASSWORD FOR $YOURSITENAME@localhost=PASSWORD('${YOURSITENAME_DBPASSWD}');
 GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '${YOURSITENAME_DBPASSWD}';
 FLUSH PRIVILEGES;
 EOF
 
 echo -e "\n--- downloading wordpress ---\n"
 
-wget https://wordpress.org/latest.tar.gz > /dev/null
+wget https://wordpress.org/latest.tar.gz >> /vagrant/vm_build.log 2>&1
 
 echo -e "\n--- Extract Wordpress Archive (+ Clean Up) ---\n"
 
@@ -577,9 +582,12 @@ rm latest.tar.gz
 
 echo -e "\n--- Renaming the extracted 'wordpress' directory to public_html ---\n"
 
-mv wordpress public_html
+mv wordpress /home/$YOURSITENAME/public_html
 
-echo -e "\n--- Setting proper file permissions on site files for $YOURSITENAME ---\n"
+echo -e "\n--- Setting proper file permissions on site files for : $YOURSITENAME ---\n"
+
+# ==> default: --- Setting proper file permissions on site files for yoursitename ---
+# ==> default: /tmp/vagrant-shell: line 602: cd: /home/yoursitename/public_html: No such file or directory
 
 cd /home/$YOURSITENAME/public_html
 
@@ -600,9 +608,22 @@ systemctl restart php7.0-fpm nginx
 
 echo -e "\n--- DONE!! ---\n"
 
-
-echo $YOURSITENAME
-echo $YOURSITENAME_LOGINPASSWD
-echo $YOURSITENAME_DBPASSWD
-
+echo -e "--------------------------------------------------------------------------------
+This is just some basic info - copy/save this somewhere:
+yoursitename: 
+$YOURSITENAME
+yoursitename acct login password: 
+$YOURSITENAME_LOGINPASSWD
+yoursitename database password:
+$YOURSITENAME_DBPASSWD
+server name:
+$DBHOST
+database name:
+$DBNAME
+root database username:
+$DBUSER
+root database password:
+$DBPASSWD
+ip address : $IP
+--------------------------------------------------------------------------------\n "
 
