@@ -7,26 +7,20 @@
 
 # TODO make script interactive run different processes - break this down into parts
 # TODO add message and show all of the variables etc
+# TODO setup build.log --> # apt-get -y install zip unzip >> /vagrant/vm_build.log 2>&1
 # ------------------------------------------------------------------------------------------------------
+
+# username / sitename / databasename - should all be the same 
 
 # Variables
 DBHOST=localhost
 DBNAME=dbname
 DBUSER=root
 DBPASSWD=test123
-
-# all instances shouldbe this - need to test individually 
-
 YOURSITENAME=yoursitename
+IP=ip_address
 
 echo -e "\n--- Running.. ---\n"
-
-# echo -e "\n--- Updating packages list ---\n"
-# apt-get -qq update
-# echo -e "\n--- Installing base packages ---\n"
-# apt-get -y install vim curl tree build-essential python-software-properties git >> /vagrant/vm_build.log 2>&1
-# echo -e "\n--- Installing zip unzip packages ---\n"
-# apt-get -y install zip unzip >> /vagrant/vm_build.log 2>&1
 
 echo -e "\n--- Updating packages list ---\n"
 
@@ -34,16 +28,7 @@ apt-get -qq update > /dev/null
 
 echo -e "\n--- Installing base packages ---\n"
 
-# apt-get -y dist-upgrade
-
 apt-get -qq upgrade > /dev/null
-
-#### echo -e "\n--- setting password for root ---\n"
-#### echo "mysql-server mysql-server/root_password password $DBPASSWD" | debconf-set-selections
-#### echo "mysql-server mysql-server/root_password_again password $DBPASSWD" | debconf-set-selections
-#### echo -e "\n--- Install MySQL and set password for root ---\n"
-#### apt-get -y install mysql-server
-# mysql -u root -proot -e "use mysql; UPDATE user SET authentication_string=PASSWORD('$MYSQLPASSWORD') WHERE User='root'; flush privileges;" >> $LOGFILE 2>&1
 
 echo -e "\n--- installing php-mysql php-fpm monit ---\n"
 
@@ -65,11 +50,9 @@ apt-get install -qq nginx  > /dev/null
 
 echo -e "\n--- current ip address ---\n"
 
-ifconfig | grep inet | awk '{ print $2 }' | head -n 1
+IP=$(ip route get 8.8.8.8 | awk 'NR==1 {print $NF}')
 
-# OR 
-# IP=$(ip route get 8.8.8.8 | awk 'NR==1 {print $NF}')
-
+echo IP
 
 echo -e "\n--- restarting nginx php7.0-fpm monit ---\n"
 
@@ -86,6 +69,7 @@ echo -e "\n--- provisioning other things now .. ---\n"
 echo -e "\n--- making new nginx file .. ---\n"
 
 cd /etc/nginx
+
 mv nginx.conf nginx.conf.ORIG
 
 cat > nginx.conf <<EOF
@@ -135,8 +119,6 @@ echo -e "\n--- checking if cache directory exists? ---\n"
 
 ls /usr/share/nginx/html/
 
-mkdir -p /usr/share/nginx/cache/fcgi
-
 echo -e "\n--- creating cache directory ---\n"
 
 mkdir -p /usr/share/nginx/cache/fcgi
@@ -144,6 +126,7 @@ mkdir -p /usr/share/nginx/cache/fcgi
 echo -e "\n--- testing everything is working so far ---\n"
 
 nginx -t
+
 systemctl reload nginx
 
 echo -e "\n--- install and setup php ---\n"
@@ -153,12 +136,10 @@ apt-get install php-json php-xmlrpc php-curl php-gd php-xml php-mbstring php-mcr
 mv /etc/php/7.0/fpm/php-fpm.conf /etc/php/7.0/fpm/php-fpm.conf.ORIG
 
 cat > /etc/php/7.0/fpm/php-fpm.conf <<EOF
-
 [global]
 pid = /run/php-fpm.pid
 error_log = /var/log/php-fpm.log
 include=/etc/php/7.0/fpm/pool.d/*.conf
-
 EOF
 
 # need to replace yourserverhostname with the variable for the username
@@ -180,7 +161,7 @@ cat > /etc/php/7.0/fpm/pool.d/www.conf <<EOF
 
 [default]
 security.limit_extensions = .php
-listen = /var/run/php/yourserverhostname.sock
+listen = /var/run/php/$YOURSITENAME.sock
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
@@ -201,7 +182,6 @@ cd /etc/php/7.0/fpm/
 mv php.ini php.ini.ORIG
 
 cat > php.ini <<EOF
-
 [PHP]
 engine = On
 short_open_tag = Off
@@ -376,7 +356,6 @@ ldap.max_links = -1
 [opcache]
 [curl]
 [openssl]
-
 EOF
 
 # Note - always remember to set cgi.fix_pathinfo=0 - 
@@ -386,9 +365,7 @@ echo -e "\n--- restarting php ---\n"
 
 systemctl restart php7.0-fpm
 
-echo -e "\n--- generating random password ---\n"
-
-# echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15 && echo
+echo -e "\n--- generating random password for root db password ---\n"
 
 DBPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
 
@@ -399,11 +376,11 @@ echo -e "\n--- setting up mysql ---\n"
 # http://stackoverflow.com/questions/24270733/automate-mysql-secure-installation-with-echo-command-via-a-shell-script
 # http://bertvv.github.io/notes-to-self/2015/11/16/automating-mysql_secure_installation/
 
-# Setting the database root password
-# Delete anonymous users
-# Ensure the root user can not log in remotely
-# Remove the test database
-# Flush the privileges tables
+echo -e "\n--- Setting the database root password ---\n"
+echo -e "\n--- Delete anonymous users ---\n"
+echo -e "\n--- Ensure the root user can not log in remotely ---\n"
+echo -e "\n--- Remove the test database ---\n"
+echo -e "\n--- Flush the privileges tables ---\n"
 
 mysql --user=root <<EOF
 UPDATE mysql.user SET Password=PASSWORD('${DBPASSWD}') WHERE User='root';
@@ -422,11 +399,11 @@ echo -e "\n--- setting up wordpress ---\n"
 
 echo -e "\n--- adding new user : $YOURSITENAME ---\n"
 
-# need to update this to be the user we are creating for our website
+YOURSITENAME_LOGINPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
 
 adduser --quiet --disabled-password --gecos "" $YOURSITENAME
 
-echo "$YOURSITENAME:test123" | sudo chpasswd
+echo "$YOURSITENAME:$YOURSITENAME_LOGINPASSWD" | sudo chpasswd
 
 echo -e "\n--- make log file for your site ---\n"
 
@@ -570,30 +547,21 @@ echo -e "\n--- listing out all users on the system ---\n"
 
 ls /home
 
-# need to change this {$DBPASSWD} for {$YOURSITENAME} since I think Im using roots pw
+echo -e "\n--- creating password for $YOURSITENAME ---\n"
+
+YOURSITENAME_DBPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
 
 echo -e "\n--- creating database for $YOURSITENAME ---\n"
 
-# CREATE DATABASE $YOURSITENAME;
-# CREATE USER $YOURSITENAME@localhost;
-# SET PASSWORD FOR $YOURSITENAME@localhost= PASSWORD("{$DBPASSWD}");
-# GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '{$DBPASSWD}';
-# FLUSH PRIVILEGES;
-
-# mysql --user=root <<_EOF_
-# UPDATE mysql.user SET Password=PASSWORD('${$DBPASSWD}') WHERE User='root';
-# DELETE FROM mysql.user WHERE User='';
-# DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-# DROP DATABASE IF EXISTS test;
-# DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
-# FLUSH PRIVILEGES;
-# _EOF_
+# this might break or throw an error 
+# might need to look like this 
+# mysql --user=root <<EOF
 
 mysql --user=$YOURSITENAME <<EOF
 CREATE DATABASE $YOURSITENAME;
 CREATE USER $YOURSITENAME@localhost;
-SET PASSWORD FOR $YOURSITENAME@localhost= PASSWORD("${DBPASSWD}");
-GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '${DBPASSWD}';
+SET PASSWORD FOR $YOURSITENAME@localhost= PASSWORD("${YOURSITENAME_DBPASSWD}");
+GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '${YOURSITENAME_DBPASSWD}';
 FLUSH PRIVILEGES;
 EOF
 
@@ -604,6 +572,7 @@ wget https://wordpress.org/latest.tar.gz > /dev/null
 echo -e "\n--- Extract Wordpress Archive (+ Clean Up) ---\n"
 
 tar zxf latest.tar.gz
+
 rm latest.tar.gz
 
 echo -e "\n--- Renaming the extracted 'wordpress' directory to public_html ---\n"
@@ -613,7 +582,9 @@ mv wordpress public_html
 echo -e "\n--- Setting proper file permissions on site files for $YOURSITENAME ---\n"
 
 cd /home/$YOURSITENAME/public_html
+
 chown -R $YOURSITENAME:www-data .
+
 find . -type d -exec chmod 755 {} \;
 find . -type f -exec chmod 644 {} \;
 
@@ -628,5 +599,10 @@ systemctl restart php7.0-fpm nginx
 # chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
 
 echo -e "\n--- DONE!! ---\n"
+
+
+echo $YOURSITENAME
+echo $YOURSITENAME_LOGINPASSWD
+echo $YOURSITENAME_DBPASSWD
 
 
