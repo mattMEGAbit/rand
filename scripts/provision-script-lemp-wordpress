@@ -580,8 +580,6 @@ echo -e "\n--- creating database for $YOURSITENAME ---\n"
 # GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY '{$DBPASSWD}';
 # FLUSH PRIVILEGES;
 
-
-
 # mysql --user=root <<_EOF_
 # UPDATE mysql.user SET Password=PASSWORD('${$DBPASSWD}') WHERE User='root';
 # DELETE FROM mysql.user WHERE User='';
@@ -599,20 +597,6 @@ GRANT ALL PRIVILEGES ON $YOURSITENAME.* TO $YOURSITENAME@localhost IDENTIFIED BY
 FLUSH PRIVILEGES;
 EOF
 
-
-
-
-
-echo -e "\n--- switching to user $YOURSITENAME ---\n"
-
-sudo -u $YOURSITENAME 
-wget https://wordpress.org/latest.tar.gz > /dev/null
-
-
-
-# su - $YOURSITENAME
-# cd
-
 echo -e "\n--- downloading wordpress ---\n"
 
 wget https://wordpress.org/latest.tar.gz > /dev/null
@@ -622,21 +606,11 @@ echo -e "\n--- Extract Wordpress Archive (+ Clean Up) ---\n"
 tar zxf latest.tar.gz
 rm latest.tar.gz
 
-echo -e "\n--- Rename the extracted 'wordpress' directory ---\n"
+echo -e "\n--- Renaming the extracted 'wordpress' directory to public_html ---\n"
 
 mv wordpress public_html
 
-echo -e "\n--- switching to root again ---\n"
-
-# this code may not be necessary
-
-# if [ "$(whoami)" != "root" ]
-# then
-#    sudo su -s "$0"
-#    exit
-# fi
-
-echo -e "\n--- Set proper file permissions on your site files ---\n"
+echo -e "\n--- Setting proper file permissions on site files for $YOURSITENAME ---\n"
 
 cd /home/$YOURSITENAME/public_html
 chown -R $YOURSITENAME:www-data .
@@ -648,6 +622,8 @@ echo -e "\n--- Restarting services ---\n"
 systemctl restart php7.0-fpm nginx
 
 # echo -e "\n--- Secure the wp-config.php file so other users can’t read DB credentials ---\n"
+
+# you would do this after you setup wordpress through the web browser
 
 # chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
 
