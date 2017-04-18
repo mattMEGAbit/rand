@@ -583,9 +583,6 @@ mv wordpress /home/$YOURSITENAME/public_html
 
 echo -e "\n--- Setting proper file permissions on site files for : $YOURSITENAME ---\n"
 
-# ==> default: --- Setting proper file permissions on site files for yoursitename ---
-# ==> default: /tmp/vagrant-shell: line 602: cd: /home/yoursitename/public_html: No such file or directory
-
 cd /home/$YOURSITENAME/public_html
 
 chown -R $YOURSITENAME:www-data .
