@@ -1,37 +1,38 @@
+#!/bin/bash
 
-# TODO pipe output to log file
-# TODO make some cool animated shit here ... 
-    # http://patorjk.com/software/taag/#p=display&f=Graffiti&t=Type%20Something%20
-    # http://fsymbols.com/text-art/
-    # https://www.google.com/search?q=ascii+text+art&espv=2&tbm=isch&tbo=u&source=univ&sa=X&ved=0ahUKEwiL3_7avqvTAhUM6SYKHYm1CngQsAQIVw&biw=1920&bih=965
-# TODO make script interactive run different processes - break this down into parts
-# TODO add message and show all of the variables etc
-# TODO setup build.log --> # apt-get -y install zip unzip >> /vagrant/vm_build.log 2>&1
 # TODO setup secure password for root on db
 # TODO make sure password isnt shown on the cmdline 
 # TODO scp localfile user@host:/path/to/whereyouwant/thefile
+# TODO disable root login, make another user to login that has to use sudo to become root after login move the authorized keys file to that users .ssh/ file. 
 
 # ------------------------------------------------------------------------------------------------------
 
-# username / sitename / databasename - should all be the same 
-
 # Variables
+
+YOURSITENAME=automatically_set
+
 DBHOST=localhost
 DBNAME=dbname
 DBUSER=root
-DBPASSWD=test123
-YOURSITENAME=yoursitename
-IP=ip_address
+DBPASSWD=automatically_set
+IP=automatically_set
+LOGFILE=build.log
+CURRENTDIR=pwd
+
+echo -e "\n--- Making build.log file located in: $CURRENTDIR ---\n"
+
+# make log file 
+touch $LOGFILE
 
 echo -e "\n--- Running ---\n"
 
 echo -e "\n--- Updating packages list ---\n"
 
-apt-get -y update >> /vagrant/vm_build.log 2>&1
+apt-get -y update >> $LOGFILE
 
 echo -e "\n--- Installing base packages ---\n"
 
-apt-get -y upgrade >> /vagrant/vm_build.log 2>&1
+apt-get -y upgrade  
 
 echo -e "\n--- creating password for root ---\n"
 
@@ -45,27 +46,27 @@ echo "mysql-server mysql-server/root_password_again password $DBPASSWD" | debcon
 
 echo -e "\n--- Install MySQL and set password for root ---\n"
 
-apt-get -y install mysql-server >> /vagrant/vm_build.log 2>&1
+apt-get -y install mysql-server 
 
-mysql -u root -p$DBPASSWD -e "use mysql; UPDATE user SET authentication_string=PASSWORD('$DBPASSWD') WHERE User='root'; flush privileges;" >> /vagrant/vm_build.log 2>&1
+mysql -u root -p$DBPASSWD -e "use mysql; UPDATE user SET authentication_string=PASSWORD('$DBPASSWD') WHERE User='root'; flush privileges;"
 
 echo -e "\n--- Installing php-mysql php-fpm monit ---\n"
 
-apt-get -y install php-mysql php-fpm monit >> /vagrant/vm_build.log 2>&1
+apt-get -y install php-mysql php-fpm monit 
 
 echo -e "\n--- installing nginx ---\n"
 
 echo -e "\n--- Adding nginx ppa ---\n"
 
-add-apt-repository ppa:nginx/stable >> /vagrant/vm_build.log 2>&1
+add-apt-repository ppa:nginx/stable 
 
 echo -e "\n--- apt-get update ---\n" 
 
-apt-get -y update >> /vagrant/vm_build.log 2>&1
+apt-get -y update >> $LOGFILE
 
 echo -e "\n--- Installing nginx ---\n" 
 
-apt-get install -y nginx  >> /vagrant/vm_build.log 2>&1
+apt-get install -y nginx  
 
 echo -e "\n--- saving current ip address IP ---\n"
 
@@ -121,7 +122,7 @@ http {
     gzip_disable "msie6";
     gzip_vary on;
     gzip_min_length 512;
-    gzip_types text/plain text/html application/x-javascript text/javascript application/javascript text/xml text/css application/font-sfnt;
+    gzip_types text/plain application/x-javascript text/javascript application/javascript text/xml text/css application/font-sfnt;
 
     fastcgi_cache_path /usr/share/nginx/cache/fcgi levels=1:2 keys_zone=microcache:10m max_size=1024m inactive=1h;
 
@@ -146,7 +147,7 @@ systemctl reload nginx
 
 echo -e "\n--- install and setup php ---\n"
 
-apt-get install php-json php-xmlrpc php-curl php-gd php-xml php-mbstring php-mcrypt php-xml >> /vagrant/vm_build.log 2>&1
+apt-get install php-json php-xmlrpc php-curl php-gd php-xml php-mbstring php-mcrypt php-xml 
 
 mv /etc/php/7.0/fpm/php-fpm.conf /etc/php/7.0/fpm/php-fpm.conf.ORIG
 
@@ -176,7 +177,7 @@ cat > /etc/php/7.0/fpm/pool.d/www.conf <<EOF
 
 [default]
 security.limit_extensions = .php
-listen = /var/run/php/$YOURSITENAME.sock
+listen = /var/run/php/sharedpool.sock
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
@@ -568,7 +569,7 @@ EOF
 
 echo -e "\n--- downloading wordpress ---\n"
 
-wget https://wordpress.org/latest.tar.gz >> /vagrant/vm_build.log 2>&1
+wget https://wordpress.org/latest.tar.gz 
 
 echo -e "\n--- Extract Wordpress Archive (+ Clean Up) ---\n"
 
@@ -617,11 +618,35 @@ systemctl restart php7.0-fpm nginx
 
 # chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
 
+
+
+
+
+
+
+
+
+
+
+
+
+echo -e "\n--- applying fix for : Nginx logs an error when started on a machine with a single CPU. ---\n"
+  
+mkdir /etc/systemd/system/nginx.service.d
+  
+printf "[Service]\nExecStartPost=/bin/sleep 0.1\n" > /etc/systemd/system/nginx.service.d/override.conf
+
+systemctl daemon-reload
+
+APPLIED_FIX=yes
+
 echo -e "\n--- DONE!! ---\n"
 
 echo -e "--------------------------------------------------------------------------------
-This is just some basic info - copy/save this somewhere:
 
+basic info about install - copy/save somewhere SAFE/OFFSITE:
+
+$LOGFILE location: $CURRENTDIR
 acct login: $YOURSITENAME
 acct password: $YOURSITENAME_LOGINPASSWD
 acct database password: $YOURSITENAME_DBPASSWD
@@ -630,5 +655,10 @@ database name: $DBNAME
 root database username: $DBUSER
 root database password: $DBPASSWD
 ip address: $IP
---------------------------------------------------------------------------------\n "
 
+--------------------------------------------------------------------------------
+
+applied fix for nginx : $APPLIED_FIX
+if interested - see this: https://bugs.launchpad.net/ubuntu/+source/nginx/+bug/1581864
+
+--------------------------------------------------------------------------------\n "
