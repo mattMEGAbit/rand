@@ -1,58 +1,30 @@
 #!/bin/bash
 
-# TODO pipe output to log file
-# TODO make some cool animated shit here ... 
-    # http://patorjk.com/software/taag/#p=display&f=Graffiti&t=Type%20Something%20
-    # http://fsymbols.com/text-art/
-    # https://www.google.com/search?q=ascii+text+art&espv=2&tbm=isch&tbo=u&source=univ&sa=X&ved=0ahUKEwiL3_7avqvTAhUM6SYKHYm1CngQsAQIVw&biw=1920&bih=965
-# TODO make script interactive run different processes - break this down into parts
-# TODO add message and show all of the variables etc
-# TODO setup build.log --> # apt-get -y install zip unzip >> /vagrant/vm_build.log 2>&1
-# TODO setup secure password for root on db
-# TODO make sure password isnt shown on the cmdline 
-# TODO scp localfile user@host:/path/to/whereyouwant/thefile
-# TODO disable root login, make another user to login that has to use sudo to become root after login move the authorized keys file to that users .ssh/ file. 
-
-
-
-
-# ------------------------------------------------------------------------------------------------------
-
 
 
 
 # Variables
+
+YOURSITENAME=mattlovescode
+
 DBHOST=localhost
 DBNAME=dbname
 DBUSER=root
 DBPASSWD=automatically_set
-YOURSITENAME=automatically_set
 IP=automatically_set
 LOGFILE=build.log
 CURRENTDIR=pwd
 
 
 
-echo -e "\n--- Making build.log file located in: $CURRENTDIR ---\n"
 
-# make log file 
-touch $LOGFILE
 
-# prompt user for sitename
-YOURSITENAME=
-while [[ $YOURSITENAME = "automatically_set" ]]; do
-   read -p "Enter name of your site (do not include www. or .com): " YOURSITENAME
-done
 
 echo -e "\n--- Running ---\n"
 
-echo -e "\n--- Updating packages list ---\n"
+apt-get update 
 
-apt-get -y update >> $LOGFILE
-
-echo -e "\n--- Installing base packages ---\n"
-
-apt-get -y upgrade  
+apt-get upgrade  
 
 echo -e "\n--- creating password for root ---\n"
 
@@ -66,13 +38,13 @@ echo "mysql-server mysql-server/root_password_again password $DBPASSWD" | debcon
 
 echo -e "\n--- Install MySQL and set password for root ---\n"
 
-apt-get -y install mysql-server 
+apt-get install mysql-server 
 
 mysql -u root -p$DBPASSWD -e "use mysql; UPDATE user SET authentication_string=PASSWORD('$DBPASSWD') WHERE User='root'; flush privileges;"
 
 echo -e "\n--- Installing php-mysql php-fpm monit ---\n"
 
-apt-get -y install php-mysql php-fpm monit 
+apt-get install php-mysql php-fpm monit 
 
 echo -e "\n--- installing nginx ---\n"
 
@@ -82,11 +54,11 @@ add-apt-repository ppa:nginx/stable
 
 echo -e "\n--- apt-get update ---\n" 
 
-apt-get -y update >> $LOGFILE
+apt-get update
 
 echo -e "\n--- Installing nginx ---\n" 
 
-apt-get install -y nginx  
+apt-get install nginx  
 
 echo -e "\n--- saving current ip address IP ---\n"
 
@@ -108,7 +80,7 @@ cd /etc/nginx
 
 mv nginx.conf nginx.conf.ORIG
 
-cat > nginx.conf <<EOF
+cat > nginx.conf <<'EOF'
 user  www-data;
 worker_processes  auto;
 
@@ -142,7 +114,7 @@ http {
     gzip_disable "msie6";
     gzip_vary on;
     gzip_min_length 512;
-    gzip_types text/plain application/x-javascript text/javascript application/javascript text/xml text/css application/font-sfnt;
+    gzip_types text/plain text/html application/x-javascript text/javascript application/javascript text/xml text/css application/font-sfnt;
 
     fastcgi_cache_path /usr/share/nginx/cache/fcgi levels=1:2 keys_zone=microcache:10m max_size=1024m inactive=1h;
 
@@ -193,11 +165,13 @@ EOF
 # Enjoy!
 # ----------------
 
+mv /etc/php/7.0/fpm/pool.d/www.conf /etc/php/7.0/fpm/pool.d/wwwconf.ORIG
+
 cat > /etc/php/7.0/fpm/pool.d/www.conf <<EOF
 
 [default]
 security.limit_extensions = .php
-listen = /var/run/php/sharedpool.sock
+listen = /var/run/php/$YOURSITENAME.sock
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
@@ -217,7 +191,7 @@ cd /etc/php/7.0/fpm/
 
 mv php.ini php.ini.ORIG
 
-cat > php.ini <<EOF
+cat > php.ini <<'EOF'
 [PHP]
 engine = On
 short_open_tag = Off
@@ -394,17 +368,11 @@ ldap.max_links = -1
 [openssl]
 EOF
 
-# Note - always remember to set cgi.fix_pathinfo=0 - 
-# keeps php from guessing paths, it can be a security vuln.
-
 echo -e "\n--- restarting php ---\n"
 
 systemctl restart php7.0-fpm
 
 echo -e "\n--- setting up mysql ---\n"
-
-# http://stackoverflow.com/questions/24270733/automate-mysql-secure-installation-with-echo-command-via-a-shell-script
-# http://bertvv.github.io/notes-to-self/2015/11/16/automating-mysql_secure_installation/
 
 echo -e "\n--- Setting the database root password ---\n"
 echo -e "\n--- Delete anonymous users ---\n"
@@ -423,7 +391,8 @@ EOF
 
 echo -e "\n--- restarting mysql ---\n"
 
-service mysql restart
+# service mysql restart
+systemctl restart mysql 
 
 echo -e "\n--- setting up wordpress ---\n"
 
@@ -441,7 +410,7 @@ mkdir -p /home/$YOURSITENAME/logs
 
 echo -e "\n--- edit /etc/nginx/conf.d/$YOURSITENAME.conf ---\n"
 
-cat > /etc/nginx/conf.d/$YOURSITENAME.conf <<EOF
+cat > /etc/nginx/conf.d/$YOURSITENAME.conf <<'EOF'
 server {
     listen       80;
     server_name  www.$YOURSITENAME;
@@ -534,18 +503,25 @@ server {
     rewrite ^/(.*)$ http://www.$YOURSITENAME/$1 permanent;
 }
 EOF
+EOF
+
+sed -i s/'$YOURSITENAME'/$YOURSITENAME/g /etc/nginx/conf.d/$YOURSITENAME.conf
+
+sed -i s/yoursitename/$YOURSITENAME/g /etc/nginx/conf.d/$YOURSITENAME.conf
 
 echo -e "\n--- removing old nginx site ---\n"
 
-# only need to do this once since this is most likely your first time setting things up.. 
+# only need to do this once since this is  your first time setting things up.. 
 
 ls /etc/nginx/sites-enabled/
 
 rm /etc/nginx/sites-enabled/default
 
+# do I need to add mysite here?!
+
 echo -e "\n--- setup php pool for the new site ---\n"
 
-cat > /etc/php/7.0/fpm/pool.d/$YOURSITENAME.conf <<EOF
+cat > /etc/php/7.0/fpm/pool.d/$YOURSITENAME.conf <<EOF 
 [$YOURSITENAME]
 listen = /var/run/php/$YOURSITENAME.sock
 listen.owner = $YOURSITENAME
@@ -618,19 +594,6 @@ echo -e "\n--- Restarting services ---\n"
 
 systemctl restart php7.0-fpm nginx
 
-# need to debug this 
-
-# ==> default: Job for nginx.service failed because the control process exited with error code. See "systemctl status nginx.service" and "journalctl -xe" for details.
-# ==> default: Job for php7.0-fpm.service failed because the control process exited with error code. See "systemctl status php7.0-fpm.service" and "journalctl -xe" for details.
-
-
-
-########################################################################################
-########################################################################################
-########################################################################################
-########################################################################################
-
-
 
 # echo -e "\n--- Secure the wp-config.php file so other users can’t read DB credentials ---\n"
 
@@ -639,41 +602,15 @@ systemctl restart php7.0-fpm nginx
 # chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-read -p "apply fix for : Nginx logs an error when started on a machine with a single CPU?: " prompt
-if [[ $prompt =~ [yY](es)* ]]
-then
+#echo -e "\n--- applying fix for : Nginx logs an error when started on a machine with a single CPU. ---\n"
   
-  mkdir /etc/systemd/system/nginx.service.d
+#mkdir /etc/systemd/system/nginx.service.d
   
-  printf "[Service]\nExecStartPost=/bin/sleep 0.1\n" > /etc/systemd/system/nginx.service.d/override.conf
-  
-  systemctl daemon-reload
+#printf "[Service]\nExecStartPost=/bin/sleep 0.1\n" > /etc/systemd/system/nginx.service.d/override.conf
 
-  APPLIED_FIX=yes
-  else
-    APPLIED_FIX=no
-  #exit 0
-fi
+#systemctl daemon-reload
 
-
-
-
-
-
-
-
+#APPLIED_FIX=yes
 
 echo -e "\n--- DONE!! ---\n"
 
@@ -681,7 +618,6 @@ echo -e "-----------------------------------------------------------------------
 
 basic info about install - copy/save somewhere SAFE/OFFSITE:
 
-$LOGFILE location: $CURRENTDIR
 acct login: $YOURSITENAME
 acct password: $YOURSITENAME_LOGINPASSWD
 acct database password: $YOURSITENAME_DBPASSWD
@@ -693,7 +629,6 @@ ip address: $IP
 
 --------------------------------------------------------------------------------
 
-applied fix for nginx : $APPLIED_FIX
 if interested - see this: https://bugs.launchpad.net/ubuntu/+source/nginx/+bug/1581864
 
 --------------------------------------------------------------------------------\n "

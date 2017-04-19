@@ -158,26 +158,11 @@ error_log = /var/log/php-fpm.log
 include=/etc/php/7.0/fpm/pool.d/*.conf
 EOF
 
-# need to replace yourserverhostname with the variable for the username
-
-# ----------------
-# a note on the above code - 
-# example could be - ubuntu-512mb-nyc2-01 - assuming you are using digitalocean 
-# or something however from q&a notes : just type in 'hostname' and you'll see your 
-# hostname. If you're going to be directing traffic for a specific domain to this server, you can use that domain as the hostname (if this is your webserver for example.com, you could name it www.example.com).
-# You actually won't really be using the yourserverhostname.sock file in this course, 
-# so you can just leave it like it is in the examples. Later on, we won't be 
-# pointing a nginx config file or php-fpm pool to it, so it's basically irrelevant.
-# To see your hostname, type hostname .
-# To set a new hostname, type (as root) hostnamectl set-hostname 
-# Enjoy!
-# ----------------
-
 cat > /etc/php/7.0/fpm/pool.d/www.conf <<EOF
 
 [default]
 security.limit_extensions = .php
-listen = /var/run/php/sharedpool.sock
+listen = /var/run/php/${hostname}.sock
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
@@ -405,8 +390,6 @@ echo -e "\n--- restarting mysql ---\n"
 
 service mysql restart
 
-echo -e "\n--- setting up wordpress ---\n"
-
 echo -e "\n--- adding new user : $YOURSITENAME ---\n"
 
 YOURSITENAME_LOGINPASSWD=$(echo -n @ && cat /dev/urandom | env LC_CTYPE=C tr -dc [:alnum:] | head -c 15) 
@@ -432,6 +415,10 @@ server {
     root   /home/$YOURSITENAME/public_html;
 
     location / {
+    
+     	# below should look like this 
+    	# try_files $uri $uri/ /index.php?q=$uri&$args;
+    
         try_files $uri $uri/ /index.php?q=$uri&$args;
     }
 
@@ -476,7 +463,7 @@ server {
 
 
             # General FastCGI handling
-            fastcgi_pass unix:/var/run/php/yoursitename.sock;
+            fastcgi_pass unix:/var/run/php/$YOURSITENAME.sock;
             fastcgi_pass_header Set-Cookie;
             fastcgi_pass_header Cookie;
             fastcgi_ignore_headers Cache-Control Expires Set-Cookie;
@@ -592,40 +579,13 @@ find . -type f -exec chmod 644 {} \;
 
 echo -e "\n--- Restarting services ---\n"
 
-
 systemctl restart php7.0-fpm nginx
-
-# need to debug this 
-
-# ==> default: Job for nginx.service failed because the control process exited with error code. See "systemctl status nginx.service" and "journalctl -xe" for details.
-# ==> default: Job for php7.0-fpm.service failed because the control process exited with error code. See "systemctl status php7.0-fpm.service" and "journalctl -xe" for details.
-
-
-
-########################################################################################
-########################################################################################
-########################################################################################
-########################################################################################
-
-
 
 # echo -e "\n--- Secure the wp-config.php file so other users can’t read DB credentials ---\n"
 
 # you would do this after you setup wordpress through the web browser
 
 # chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
-
-
-
-
-
-
-
-
-
-
-
-
 
 echo -e "\n--- applying fix for : Nginx logs an error when started on a machine with a single CPU. ---\n"
   
