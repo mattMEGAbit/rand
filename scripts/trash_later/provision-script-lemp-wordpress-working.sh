@@ -28,7 +28,7 @@ echo -e "\n--- Running ---\n"
 
 echo -e "\n--- Updating packages list ---\n"
 
-apt-get -y update >> $LOGFILE
+apt-get -y update
 
 echo -e "\n--- Installing base packages ---\n"
 

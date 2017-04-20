@@ -2,7 +2,6 @@
 
 
 
-
 # Variables
 
 YOURSITENAME=mattlovescode
@@ -14,10 +13,6 @@ DBPASSWD=automatically_set
 IP=automatically_set
 LOGFILE=build.log
 CURRENTDIR=pwd
-
-
-
-
 
 
 echo -e "\n--- Running ---\n"
@@ -171,7 +166,7 @@ cat > /etc/php/7.0/fpm/pool.d/www.conf <<EOF
 
 [default]
 security.limit_extensions = .php
-listen = /var/run/php/$YOURSITENAME.sock
+listen = /var/run/php/$(hostname).sock
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
@@ -503,7 +498,6 @@ server {
     rewrite ^/(.*)$ http://www.$YOURSITENAME/$1 permanent;
 }
 EOF
-EOF
 
 sed -i s/'$YOURSITENAME'/$YOURSITENAME/g /etc/nginx/conf.d/$YOURSITENAME.conf
 
@@ -617,7 +611,6 @@ echo -e "\n--- DONE!! ---\n"
 echo -e "--------------------------------------------------------------------------------
 
 basic info about install - copy/save somewhere SAFE/OFFSITE:
-
 acct login: $YOURSITENAME
 acct password: $YOURSITENAME_LOGINPASSWD
 acct database password: $YOURSITENAME_DBPASSWD
@@ -628,7 +621,59 @@ root database password: $DBPASSWD
 ip address: $IP
 
 --------------------------------------------------------------------------------
+bug notes:
 
 if interested - see this: https://bugs.launchpad.net/ubuntu/+source/nginx/+bug/1581864
+
+--------------------------------------------------------------------------------
+troubleshooting notes:
+
+ls -lah /var/run/ | grep php
+netstat -tulpn
+/var/log/auth.log
+check if package is installed - dpkg -s package_name
+
+--------------------------------------------------------------------------------
+important locations:
+
+php - 
+
+main php ini file - /etc/php/7.0/fpm/php.ini
+php-fpm config file - /etc/php/7.0/fpm/php-fpm.conf 
+main php pool config - /etc/php/7.0/fpm/pool.d/www.conf
+php-fpm vhost pool config file - /etc/php/7.0/fpm/pool.d/yoursitename.conf
+php-fpm sockets dir - /var/run/php-fpm
+
+nginx -
+
+nginx conf file - /etc/nginx/nginx.conf
+cache directory - /usr/share/nginx/cache/fcgi
+nginx vhost config file - /etc/nginx/conf.d/yoursitename.conf
+php-fpm vhost pool config file - /etc/php/7.0/fpm/pool.d/yoursitename.conf
+php-fpm logfile - /home/yoursitename/logs/phpfpm_error.log
+default nginx vhost (should not exist) - /etc/nginx/sites-enabled/default
+serverblock file - /etc/nginx/sites-available/default
+
+--------------------------------------------------------------------------------
+key services: 
+
+systemctl start nginx php7.0-fpm monit
+# setup for boot 
+systemctl enable mysql nginx php7.0-fpm monit
+
+--------------------------------------------------------------------------------
+additional notes:
+
+# scp ~/scripts/provision-script.sh root@$IP:~/provision-script.sh
+
+next steps:
+
+run the installer by going to $IP in your browser. 
+Secure the wp-config.php file so other users can’t read DB credentials.
+
+chmod 640 /home/yourusername/public_html/wp-config.php 
+
+setup dns at domain provider to point to correct nameserver.
+
 
 --------------------------------------------------------------------------------\n "
