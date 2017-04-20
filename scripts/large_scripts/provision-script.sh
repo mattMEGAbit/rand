@@ -145,21 +145,6 @@ error_log = /var/log/php-fpm.log
 include=/etc/php/7.0/fpm/pool.d/*.conf
 EOF
 
-# need to replace yourserverhostname with the variable for the username
-
-# ----------------
-# a note on the above code - 
-# example could be - ubuntu-512mb-nyc2-01 - assuming you are using digitalocean 
-# or something however from q&a notes : just type in 'hostname' and you'll see your 
-# hostname. If you're going to be directing traffic for a specific domain to this server, you can use that domain as the hostname (if this is your webserver for example.com, you could name it www.example.com).
-# You actually won't really be using the yourserverhostname.sock file in this course, 
-# so you can just leave it like it is in the examples. Later on, we won't be 
-# pointing a nginx config file or php-fpm pool to it, so it's basically irrelevant.
-# To see your hostname, type hostname .
-# To set a new hostname, type (as root) hostnamectl set-hostname 
-# Enjoy!
-# ----------------
-
 mv /etc/php/7.0/fpm/pool.d/www.conf /etc/php/7.0/fpm/pool.d/wwwconf.ORIG
 
 cat > /etc/php/7.0/fpm/pool.d/www.conf <<EOF
@@ -386,7 +371,6 @@ EOF
 
 echo -e "\n--- restarting mysql ---\n"
 
-# service mysql restart
 systemctl restart mysql 
 
 echo -e "\n--- setting up wordpress ---\n"
@@ -511,8 +495,6 @@ ls /etc/nginx/sites-enabled/
 
 rm /etc/nginx/sites-enabled/default
 
-# do I need to add mysite here?!
-
 echo -e "\n--- setup php pool for the new site ---\n"
 
 cat > /etc/php/7.0/fpm/pool.d/$YOURSITENAME.conf <<EOF 
@@ -573,9 +555,6 @@ mv wordpress /home/$YOURSITENAME/public_html
 
 echo -e "\n--- Setting proper file permissions on site files for : $YOURSITENAME ---\n"
 
-# ==> default: --- Setting proper file permissions on site files for yoursitename ---
-# ==> default: /tmp/vagrant-shell: line 602: cd: /home/yoursitename/public_html: No such file or directory
-
 cd /home/$YOURSITENAME/public_html
 
 chown -R $YOURSITENAME:www-data .
@@ -585,26 +564,13 @@ find . -type f -exec chmod 644 {} \;
 
 echo -e "\n--- Restarting services ---\n"
 
-
 systemctl restart php7.0-fpm nginx
-
 
 # echo -e "\n--- Secure the wp-config.php file so other users can’t read DB credentials ---\n"
 
 # you would do this after you setup wordpress through the web browser
 
 # chmod 640 /home/$YOURSITENAME/public_html/wp-config.php
-
-
-#echo -e "\n--- applying fix for : Nginx logs an error when started on a machine with a single CPU. ---\n"
-  
-#mkdir /etc/systemd/system/nginx.service.d
-  
-#printf "[Service]\nExecStartPost=/bin/sleep 0.1\n" > /etc/systemd/system/nginx.service.d/override.conf
-
-#systemctl daemon-reload
-
-#APPLIED_FIX=yes
 
 echo -e "\n--- DONE!! ---\n"
 
