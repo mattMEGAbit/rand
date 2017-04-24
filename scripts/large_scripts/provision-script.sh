@@ -577,14 +577,19 @@ echo -e "\n--- DONE!! ---\n"
 echo -e "--------------------------------------------------------------------------------
 
 basic info about install - copy/save somewhere SAFE/OFFSITE:
-acct login: $YOURSITENAME
-acct password: $YOURSITENAME_LOGINPASSWD
-acct database password: $YOURSITENAME_DBPASSWD
+
+ip address: $IP
+
+useracct login: $YOURSITENAME
+useracct password: $YOURSITENAME_LOGINPASSWD
+
+database username: $YOURSITENAME 
+database userpassword: $YOURSITENAME_DBPASSWD
+
 server name: $DBHOST
-database name: $DBNAME
+
 root database username: $DBUSER
 root database password: $DBPASSWD
-ip address: $IP
 
 --------------------------------------------------------------------------------
 bug notes:
@@ -630,11 +635,11 @@ systemctl enable mysql nginx php7.0-fpm monit
 --------------------------------------------------------------------------------
 additional notes:
 
-# scp ~/scripts/provision-script.sh root@$IP:~/provision-script.sh
-
-next steps:
+Create a new user with privileges, copy their keys over, disable root login, 
+setup fw, backups, mail, monitoring, etc.
 
 run the installer by going to $IP in your browser. 
+
 Secure the wp-config.php file so other users can’t read DB credentials.
 
 chmod 640 /home/yourusername/public_html/wp-config.php 
